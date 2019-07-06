@@ -14,7 +14,7 @@ require(dplyr)
 require(readr)
 require(stringi)
 setwd("/Users/isaiahlawrencevaldez/Documents/GitHub/parliamentary_elections_forecasting_2019/isaiah")
-Sys.setlocale(category = "LC_ALL", "uk_UA")
+Sys.setlocale(category = "LC_ALL", "ukrainian")
 
 ##### COLLECTION #####################
 # TVO's for 2010 are for the pres. election, 2012 is for parl.
@@ -49,8 +49,8 @@ scrape_tvo_table = function(url) {
 }
 
 # Scrape the data once, save to .csv, load from local environment if needed again
-TVO_2010 = scrape_tvo(TVO_comp_2010_url, encoding = "UTF-8")
-TVO_2012 = scrape_tvo(TVO_comp_2012_url, encoding = "UTF-8")
+TVO_2010 = scrape_tvo(TVO_comp_2010_url, encoding = "windows-1251")
+TVO_2012 = scrape_tvo(TVO_comp_2012_url, encoding = "windows-1251")
 TVO_2014_pres = scrape_tvo(TVO_comp_2014_pres_url, encoding = "windows-1251")
 TVO_2014_parl = scrape_tvo(TVO_comp_2014_parl_url, encoding = "windows-1251")
 
