@@ -50,6 +50,7 @@ presidential_2010_full = scrape_tvo_results(url)
 
 ##### SAVE DATA ######################################
 write.csv(presidential_2010_full, "presidential_2010_full.csv", row.names = F)
+presidential_2010_full = read_csv("presidential_2010_full.csv")
 # our data is grouped by TVO, so group by TVO all columns
 presidential_2010_full[,1] = as.character(presidential_2010_full[,1])
 presidential_2010 = presidential_2010_full %>%
@@ -80,19 +81,29 @@ names(presidential_2010) = c("tvo", "candidate", "perc_for", "votes_for")
 write.csv(presidential_2010, "presidential_2010_long.csv", row.names = F)
 
 ####### REPEAT FOR 2014 #############################
-presidential_2014_full = read_csv("/Users/isaiahlawrencevaldez/Documents/GitHub/parliamentary_elections_forecasting_2019/isaiah/electiondata/election_results/president_2014_all_results.csv")
+presidential_2014_full = read_csv("https://github.com/OPORA/electiondata/raw/master/election_results/president_2014_all_results.csv")
 presidential_2014_full = presidential_2014_full[,-c(1,2,4,5,6,7,8,9,10,11,12,14)]
 # our data is grouped by TVO, so group by TVO all columns
 presidential_2014 = presidential_2014_full %>%
   group_by(District) %>% 
   summarise_if(is.numeric, sum)
 # the list is shorter than 225 because it excludes non-government controlled territories 
+presidential_2019_full = read_csv("https://github.com/OPORA/electiondata/raw/master/election_results/President_2019_1_round.csv")
+presidential_2019_full = presidential_2019_full[,-c(1,2,4:19,21,61)]
+# our data is grouped by TVO, so group by TVO all columns
+presidential_2019 = presidential_2019_full %>%
+  group_by(okrug) %>% 
+  summarise_if(is.numeric, sum)
 
 write.csv(presidential_2014, "presidential_2014.csv", row.names = F)
 write.csv(presidential_2014_full, "presidential_2014_full.csv", row.names = F)
+write.csv(presidential_2019, "presidential_2019.csv", row.names = F)
+write.csv(presidential_2019_full, "presidential_2019_full.csv", row.names = F)
 ##### LOAD DATA ######################################
 presidential_2014 = read_csv("presidential_2014.csv")
 presidential_2014_full = read_csv("presidential_2014_full.csv")
+presidential_2019 = read_csv("presidential_2019.csv")
+presidential_2019_full = read_csv("presidential_2019_full.csv")
 
 ##### CONVERSION #####################################
 # the data from the table is in wide format
@@ -112,3 +123,24 @@ presidential_2014_long = presidential_2014_long[,c('tvo', 'candidate', 'votes_fo
 presidential_2014 = inner_join(x = presidential_2014_long_perc, y = presidential_2014_long, by = c('tvo', 'candidate'))
 names(presidential_2014) = c("tvo", "candidate", "perc_for", "votes_for")
 write.csv(presidential_2014, "presidential_2014_long.csv", row.names = F)
+
+# presidential 2019
+presidential_2019_long = gather(data = presidential_2019, key = "candidate", value = "votes_for", 3:41)
+names(presidential_2019_long) = c("tvo", "total_votes", "candidate", "votes_for")
+# create a copy of the table with percentages instead of total num votes
+presidential_2019[,3:41] = sapply(presidential_2019[,3:41], function(x) {
+  x*100 / presidential_2019[,2]
+})
+presidential_2019_long_perc = gather(data = presidential_2019, key = "candidate", value = "votes_for", 3:41)
+names(presidential_2019_long_perc) = c("tvo", "total_votes", "candidate", "votes_for")
+
+presidential_2019_long_perc = presidential_2019_long_perc[,c('tvo', 'candidate', 'votes_for')]
+presidential_2019_long = presidential_2019_long[,c('tvo', 'candidate', 'votes_for')]
+presidential_2019 = inner_join(x = presidential_2019_long_perc, y = presidential_2019_long, by = c('tvo', 'candidate'))
+names(presidential_2019) = c("tvo", "candidate", "perc_for", "votes_for")
+
+# The names are messed up, so split them
+presidential_2019$candidate = gsub(pattern = "([а-яґєії])([А-ЯҐЄІЇ])", x = presidential_2019$candidate, replacement = "\\1 \\2")
+
+write.csv(presidential_2019, "presidential_2019_long.csv", row.names = F)
+

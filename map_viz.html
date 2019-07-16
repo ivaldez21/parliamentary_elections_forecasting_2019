@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.5.1/dist/leaflet.css" />
+	<script src="https://unpkg.com/leaflet@1.5.1/dist/leaflet.js"></script>
+	<script src="/Users/isaiahlawrencevaldez/Documents/GitHub/parliamentary_elections_forecasting_2019/isaiah/maps/oblast1.geojson" type="text/javascript"></script>
+	<style>
+		#map {position: absolute; top: 0; bottom: 0; left: 0; right: 0;}
+	</style>
+</head>
+<body>
+	<div id="map">
+	<script type="text/javascript">
+		var map = L.map('map', { zoomControl:false }).setView([49.272021, 31.437523], 5);
+
+		L.tileLayer('https://api.maptiler.com/maps/streets/{z}/{x}/{y}.png?key=FserAxWsK4mD6dXBxHdg', {attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">© MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">© OpenStreetMap contributors</a>',
+		}).addTo(map);
+
+		var layer = new L.LayerGroup();
+		L.geoJson(oblast1).addTo(layer);
+
+	</script>
+	</div>
+</body>
+</html>

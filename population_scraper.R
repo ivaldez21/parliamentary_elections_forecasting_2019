@@ -13,15 +13,14 @@ require(dplyr)
 require(readr)
 require(stringi)
 require(tidyr)
-Sys.setlocale(locale = "ukrainian")
+Sys.setlocale(locale = "UTF-8")
+setwd(dir = "/Users/isaiahlawrencevaldez/Documents/GitHub/parliamentary_elections_forecasting_2019/isaiah")
 
-path = "C:\\Users\\Isaiah Valdez\\Downloads\\population\\zb_chnas_2011\\zb_chnas_2011.pdf"
 path_2 = "population_2012.csv"
 regions = "Автономна Республіка Крим\nВінницька область\nВолинська область\nДніпропетровська область\nДонецька область\nЖитомирська область\nЗакарпатська область\nЗапорізька область\nІвано-Франківська область\nКиївська область\nКіровоградська область\nЛуганська область\nЛьвівська область\nМиколаївська область\nОдеська область\nПолтавська область\nРівненська область\nСумська область\nТернопільська область\nХарківська область\nХерсонська область\nХмельницька область\nЧеркаська область\nЧернівецька область\nЧернігівська область\nм. Київ\nСевастополь (міськрада)"
 regions = regions %>% strsplit(split = '\\n') %>% unlist()
 
 population = read_csv(file = "population_2012.csv", col_names = "data")
-population2 = read_csv(file = file.choose(), col_names = "data")
 
 ##### SEPERATE COLUMNS ################################
 # eliminate columns that don't matter
@@ -46,29 +45,27 @@ df_pop = data.frame(place = place, pop_2010 = pop_2010, pop_2011 = pop_2011, pop
 #clean names of places
 df_pop$place = gsub(x = df_pop$place, pattern = "(м\\.)([^ ]+)", replacement = "\\1 \\2")
 
-
 ##### create new table which only has misto, rajon, and celo (district in another column)
 total_population = df_pop[1,]
 df_pop = df_pop[-1,]
-place = list()
-district = list()
+
 df_pop$district = ""
 for (i in 1:nrow(df_pop)) {
     if (df_pop$place[i] %in% regions) {
         current_district = df_pop$place[i]
-        df_pop$distrct[i] = current_district
+        df_pop$district[i] = current_district
     } else {
-      df_pop$distrct[i] = current_district
+      df_pop$district[i] = current_district
     }
 }
 
 write.csv(df_pop, "population_by_region_2010-2012.csv", row.names = F)
 
+########### 2014 ######################################################
+population2 = read_csv(file = "population_2014.csv", col_names = "data")
 population2 = as.vector(population2)
 population2 = population2[-c(1,2,3,4),]
 population2 = population2[['data']]
-
-
 
 new_list = list()
 new_list_2012 = list()
@@ -88,15 +85,17 @@ while (i < length(population2)) {
     # don't want this data
     i = i + 3
     header = FALSE
-  } else if (grepl(pattern = 'район\\b', x = temp_row, perl = T)) {
+  } else if (grepl(pattern = 'смт ', x = temp_row)) {
+    # don't want this data
+    i = i + 3
+    header = FALSE
+  } else if (grepl(pattern = 'район$', x = temp_row, perl = T)) {
     header = TRUE
   } else if (grepl(pattern = 'м[.]', x = temp_row)) {
     header = TRUE
-  } else if (grepl(pattern = 'смт ', x = temp_row)) {
-    header = TRUE
   } else if (grepl(pattern = 'міськрада ', x = temp_row)) {
     header = TRUE
-  } else if (grepl(pattern = 'область ', x = temp_row)) {
+  } else if (grepl(pattern = 'область', x = temp_row)) {
     header = TRUE
   } else if (grepl(pattern = 'Автономна ', x = temp_row)) {
     header = TRUE
@@ -120,10 +119,23 @@ new_list_2012 = unlist(new_list_2012)
 new_list_2013 = unlist(new_list_2013)
 new_list_2014 = unlist(new_list_2014)
 
-combined_pop2 = data.frame(place = new_list, pop_2012 = new_list_2012, pop_2013 = new_list_2013, pop_2014 = new_list_2014)
+combined_pop2 = data.frame(place = new_list, pop_2012 = new_list_2012,
+                           pop_2013 = new_list_2013, pop_2014 = new_list_2014,
+                           stringsAsFactors = F)
 
+#cleans up the number columns by eliminating extra spaces
 for (i in 2:4) {
-  combined_pop2[,i] = gsub(x = combined_pop2[,i], pattern = "\\s", replacement = "")
+  combined_pop2[,i] = gsub(x = combined_pop2[,i], pattern = "\\s", replacement = "") %>% as.integer()
+}
+
+combined_pop2$district = ""
+for (i in 1:nrow(combined_pop2)) {
+  if (combined_pop2$place[i] %in% regions) {
+    current_district = combined_pop2$place[i]
+    combined_pop2$district[i] = current_district
+  } else {
+    combined_pop2$district[i] = current_district
+  }
 }
 
 write.csv(combined_pop2, "population_by_region_2012-2014.csv", row.names = F)
