@@ -19,10 +19,13 @@ setwd(dir = "/Users/isaiahlawrencevaldez/Documents/GitHub/parliamentary_election
 data = read_csv(file = "combined_results_cleaned.csv") %>% data.table(stringsAsFactors = T)
 data[, tvo := as.factor(as.character(tvo))]
 data[, tvo_pres := as.factor(as.character(tvo_pres))]
-data[, log_perc_for:=log(perc_for/100)]
+
+# need this to split the data later on
+data$unique_id = 1:nrow(data)
+which(!unique(data$unique_id)) 
 
 ## H2O is an R package
-library(h2o)
+library(h2o) 
 library(data.table)
 ## Create an H2O cloud 
 h2o.init(
@@ -57,9 +60,7 @@ splits <- h2o.splitFrame(
   ##  so we will get 0.6 / 0.2 / 1 - (0.6+0.2) = 0.6/0.2/0.2
   seed=1234)    ##  setting a seed will ensure reproducible results (not R's seed)
 
-train <- h2o.assign(splits[[1]], "train.hex")   
-## assign the first result the R variable train
-## and the H2O name train.hex
+train <- h2o.assign(splits[[1]], "train.hex") 
 valid <- h2o.assign(splits[[2]], "valid.hex")   ## R valid, H2O valid.hex
 test <- h2o.assign(splits[[3]], "test.hex")     ## R test, H2O test.hex
 rm(splits)
@@ -81,72 +82,72 @@ feature_names
 h2o.isfactor(train[,feature_names])
 
 
-## run our first predictive model
-x = feature_names
-y = 20 #20 or 2 or 29
-rf1 <- h2o.randomForest(         ## h2o.randomForest function
-  training_frame = train,        ## the H2O frame for training
-  validation_frame = valid,      ## the H2O frame for validation (not required)
-  x = x,             ## the predictor columns, by column index
-  y = y,  #winner              ## the target index (what we are predicting) "log_perc_win"
-  nfolds = 3,
-  model_id = "rf_covType_v1",
-  ntrees = 50,
-  sample_rate = 0.7,
-  mtries = 5,
-  stopping_rounds = 5,
-  stopping_metric = "logloss",
-  seed = 1000000,
-  ## balance the classes by oversampling the "1"'s
-  balance_classes = T)
-
-perf_rf1 = h2o.performance(rf1, newdata = test)
-perf_rf1
-h2o.confusionMatrix(perf_rf1)
-
-# y = 30 #log_perc_for
-# rf2 <- h2o.randomForest(
-#   training_frame = train,     ## the H2O frame for training
-#   validation_frame = valid,   ## the H2O frame for validation (not required)
-#   x = x,                      ## the predictor columns, by column index
-#   y = y,  #winner             ## the target index (what we are predicting) "log_perc_win"
+# ## run our first predictive model
+# x = feature_names
+# y = 20 #20 or 2 or 29
+# rf1 <- h2o.randomForest(         ## h2o.randomForest function
+#   training_frame = train,        ## the H2O frame for training
+#   validation_frame = valid,      ## the H2O frame for validation (not required)
+#   x = x,             ## the predictor columns, by column index
+#   y = y,  #winner              ## the target index (what we are predicting) "log_perc_win"
+#   nfolds = 3,
+#   model_id = "rf_covType_v1",
+#   ntrees = 50,
+#   sample_rate = 0.7,
+#   mtries = 5,
 #   stopping_rounds = 5,
+#   stopping_metric = "logloss",
 #   seed = 1000000,
-#   ntrees = 500,
-#   nfolds = 3
+#   ## balance the classes by oversampling the "1"'s
+#   balance_classes = T)
+# 
+# perf_rf1 = h2o.performance(rf1, newdata = test)
+# perf_rf1
+# h2o.confusionMatrix(perf_rf1)
+# 
+# # y = 30 #log_perc_for
+# # rf2 <- h2o.randomForest(
+# #   training_frame = train,     ## the H2O frame for training
+# #   validation_frame = valid,   ## the H2O frame for validation (not required)
+# #   x = x,                      ## the predictor columns, by column index
+# #   y = y,  #winner             ## the target index (what we are predicting) "log_perc_win"
+# #   stopping_rounds = 5,
+# #   seed = 1000000,
+# #   ntrees = 500,
+# #   nfolds = 3
+# # )
+# # summary(rf2)
+# # h2o.performance(rf2, newdata = test)
+# 
+# # hyperparameter grid
+# hyper_grid.h2o <- list(
+#   ntrees      = seq(25, 150, by = 25),
+#   mtries = c(4,10,15,19),
+#   sample_rate = c(0.45, .55, .632, .70, 0.8)
 # )
-# summary(rf2)
-# h2o.performance(rf2, newdata = test)
-
-# hyperparameter grid
-hyper_grid.h2o <- list(
-  ntrees      = seq(25, 150, by = 25),
-  mtries = c(4,10,15,19),
-  sample_rate = c(0.45, .55, .632, .70, 0.8)
-)
-
-# build grid search
-grid <- h2o.grid(
-  algorithm = "drf",
-  grid_id = "rf_grid",
-  x = x,
-  y = y,
-  training_frame = train,
-  validation_frame = valid,
-  hyper_params = hyper_grid.h2o,
-  search_criteria = list(strategy = "Cartesian")
-)
-
-# collect the results and sort by our model performance metric of choice
-grid_perf <- h2o.getGrid(
-  grid_id = "rf_grid",
-  sort_by = "rmse",
-  decreasing = FALSE
-)
-summary(grid_perf)
-
-#predict on test file
-h2o.predict(rf1, newdata = df_test)
+# 
+# # build grid search
+# grid <- h2o.grid(
+#   algorithm = "drf",
+#   grid_id = "rf_grid",
+#   x = x,
+#   y = y,
+#   training_frame = train,
+#   validation_frame = valid,
+#   hyper_params = hyper_grid.h2o,
+#   search_criteria = list(strategy = "Cartesian")
+# )
+# 
+# # collect the results and sort by our model performance metric of choice
+# grid_perf <- h2o.getGrid(
+#   grid_id = "rf_grid",
+#   sort_by = "rmse",
+#   decreasing = FALSE
+# )
+# summary(grid_perf)
+# 
+# #predict on test file
+# h2o.predict(rf1, newdata = df_test)
 
 ##### XGBOOST ####################################
 x = feature_names
@@ -186,8 +187,48 @@ names(train[,y])
 # grid_perf ## xgboost 1
 ## xgb1 with 150 trees, xgb2 with 100, xgb3 with 50 trees, and xgb4 default plus min child weight = 9
 
-xgb3 <- h2o.xgboost(            ## h2o.randomForest function
+xgb1 <- h2o.xgboost(            ## h2o.randomForest function
+  model_id = "xgb1",
+  ntrees = 150,
+  eta = 0.1,
+  min_child_weight = 9,        ## very imbalanced
+  max_depth = 11,
+  gamma = 0,                   ## should be tuned, depends on logloss function
+  max_delta_step = 0,          ## defaults to 0, can be helpful in unbalanced models
+  subsample = 0.8,             ## defaults to 1, lowering prevents overfit
+  colsample_bytree = 0.8,      ## fraction of columns to samples for each tree
+  stopping_rounds = 50,
+  stopping_metric = "logloss",
+  verbose = T,
+  seed = 1234,                  ##
+  training_frame = train,      ## the H2O frame for training
+  validation_frame = valid,    ## the H2O frame for validation (not required)
+  x = x,                       ## the predictor columns, by column index
+  y = y  #winner              ## the target index (what we are predicting) "log_perc_win"
+)
+
+xgb2 <- h2o.xgboost(            ## h2o.randomForest function
   model_id = "xgb2",
+  ntrees = 100,
+  eta = 0.1,
+  min_child_weight = 9,        ## very imbalanced
+  max_depth = 11,
+  gamma = 0,                   ## should be tuned, depends on logloss function
+  max_delta_step = 0,          ## defaults to 0, can be helpful in unbalanced models
+  subsample = 0.8,             ## defaults to 1, lowering prevents overfit
+  colsample_bytree = 0.8,      ## fraction of columns to samples for each tree
+  stopping_rounds = 50,
+  stopping_metric = "logloss",
+  verbose = T,
+  seed = 1234,                  ##
+  training_frame = train,      ## the H2O frame for training
+  validation_frame = valid,    ## the H2O frame for validation (not required)
+  x = x,                       ## the predictor columns, by column index
+  y = y  #winner              ## the target index (what we are predicting) "log_perc_win"
+)
+
+xgb3 <- h2o.xgboost(            ## h2o.randomForest function
+  model_id = "xgb3",
   ntrees = 50,
   eta = 0.1,
   min_child_weight = 9,        ## very imbalanced
@@ -207,7 +248,7 @@ xgb3 <- h2o.xgboost(            ## h2o.randomForest function
 )
 
 xgb4 <- h2o.xgboost(            ## h2o.randomForest function
-  model_id = "xgb2",
+  model_id = "xgb4",
   min_child_weight = 9,
   verbose = T,
   seed = 1234,                  ##
@@ -218,25 +259,27 @@ xgb4 <- h2o.xgboost(            ## h2o.randomForest function
 )
 
 var_imp = h2o.varimp(xgb1)
-h2o.varimp_plot(xgb4)
-h2o.performance(xgb1, newdata = train)
-h2o.performance(xgb1, newdata = valid)
-h2o.performance(xgb1, newdata = test)
+h2o.varimp(xgb1)
+# # not looking at these closely because some tvo's predict no winners, some several
+# # because the model does not know that one person wins in each tvo
+# h2o.performance(xgb1, newdata = train) 
+# h2o.performance(xgb1, newdata = valid)
+# h2o.performance(xgb1, newdata = test)
 
 h2o.varimp(xgb2)
-h2o.performance(xgb2, newdata = train)
-h2o.performance(xgb2, newdata = valid)
-h2o.performance(xgb2, newdata = test)
+# h2o.performance(xgb2, newdata = train)
+# h2o.performance(xgb2, newdata = valid)
+# h2o.performance(xgb2, newdata = test)
 
 h2o.varimp(xgb3)
-h2o.performance(xgb3, newdata = train)
-h2o.performance(xgb3, newdata = valid)
-h2o.performance(xgb3, newdata = test)
+# h2o.performance(xgb3, newdata = train)
+# h2o.performance(xgb3, newdata = valid)
+# h2o.performance(xgb3, newdata = test)
 
 h2o.varimp(xgb4)
-h2o.performance(xgb4, newdata = train)
-h2o.performance(xgb4, newdata = valid)
-h2o.performance(xgb4, newdata = test)
+# h2o.performance(xgb4, newdata = train)
+# h2o.performance(xgb4, newdata = valid)
+# h2o.performance(xgb4, newdata = test)
 
 prediction_150 = h2o.predict(xgb1, newdata = df_test) %>% as.data.frame()
 prediction_100 = h2o.predict(xgb2, newdata = df_test) %>% as.data.frame()
@@ -258,17 +301,61 @@ pick_winners = function(df, tvo_column, vote_column) {
   won
 }
 
-
 predict_df$winner = pick_winners(predict_df, tvo_column = "tvo", vote_column = "prediction_150")
-View(predict_df[,c("tvo","deputat","winner","prediction_150","proposed")] %>% arrange(tvo,desc(prediction_150)))
+# View(predict_df[,c("tvo","deputat","winner","prediction_150","proposed")] %>%
+#        arrange(tvo,desc(prediction_150)))
 
-temp_df = predict_df %>% group_by(proposed) %>% summarize(winner_count = sum(winner))
-
-names(predict_df)
+# temp_df = predict_df %>% group_by(proposed) %>% summarize(winner_count = sum(winner))
+predict_df$tvo %<>% as.character() %>% as.numeric()
+predict_df %<>% arrange(tvo,desc(prediction_150))
 
 write.csv(predict_df, file = "predictions.csv", row.names = F)
 
-
+##### LOOKING AT THE PREDICTIONS FROM THE MODEL TO SEE WHERE IT GUESSES WRONG ###################
+# library(caret)
+# 
+# predictions = h2o.predict(xgb1, newdata = df) %>% as.data.frame()
+# predicted_winner = predictions$predict %>% as.logical()
+# predicted_prob = predictions$TRUE.
+# train_df$prediction_prob = predicted_prob
+# names(train_df)
+# train_df$tvo %<>% as.numeric()
+# 
+# #this needs to be done in two steps... 2012 and 2014 seperately
+# mask_2012 = which(train_df$year == "2012")
+# mask_2014 = which(train_df$year == "2014")
+# train_df$prediction[mask_2012] = pick_winners(train_df[mask_2012,], tvo_column = "tvo", vote_column = "prediction_prob") %>%
+#   as.logical()
+# train_df$prediction[mask_2014] = pick_winners(train_df[mask_2014,], tvo_column = "tvo", vote_column = "prediction_prob") %>%
+#   as.logical()
+# 
+# # the mask for which data was not trained on at all
+# test_ids = test$unique_id %>% as.vector()
+# validation_ids = valid$unique_id %>% as.vector()
+# 
+# temp_df = train_df[, c("deputat", "tvo", "year", "winner", "prediction", "prediction_prob", "perc_for") ]
+# 
+# temp_df$winner %<>% base::as.factor()
+# temp_df$prediction %<>% base::as.factor()
+# confusionMatrix(temp_df$prediction[test_ids], temp_df$winner[test_ids], positive = "TRUE")
+# 
+# false_positives = which(temp_df$winner == FALSE & temp_df$prediction == TRUE)
+# false_negatives = which(temp_df$winner == TRUE & temp_df$prediction == FALSE)
+# correct = which(temp_df$winner == temp_df$prediction)
+# temp_df$correct = FALSE
+# temp_df$correct[correct] = TRUE
+# # true_positives = which(temp_df$winner == TRUE & temp_df$prediction == TRUE)
+# # true_negatives = which(temp_df$winner == FALSE & temp_df$prediction == FALSE)
+# # all_positive = which(temp_df$winner == TRUE)
+# # all_negative = which(temp_df$winner == FALSE)
+# # length(false_positives)
+# # length(false_negatives)
+# # length(true_positives)
+# # length(true_negatives)
+# # length(all_positive)
+# # length(all_negative)
+# temp_df = temp_df %>% arrange(year,tvo)
+# View(temp_df[which(temp_df$correct == FALSE),])
 
 ###### ADD FACTION INFO ###################################
 predict_df = read_csv("predictions.csv")
@@ -291,7 +378,7 @@ combined_predictions = left_join(x = predict_df, y = MPs_all_convocation, by = c
 combined_predictions %<>% group_by(deputat,birthday) 
 combined_predictions = combined_predictions[-which(duplicated(combined_predictions[,c("deputat", "birthday")])),]
 
-fractions_df = read_csv("https://data.rada.gov.ua/ogd/mps/skl8/mp-posts_full.csv")
+fractions_df = read_csv("mp-posts_full.csv")
 fractions_df = fractions_df %>%
   filter(grepl(pattern = "депутатської (фракції|групи)", x = post_name)) %>%
   select(mp_id, full_name, post_title)
@@ -322,15 +409,15 @@ for (i in 1:nrow(combined_predictions)) {
 
 head(combined_predictions$fraction.x,150)
 head(combined_predictions$fraction.y,100)
-View(combined_predictions[,c("fraction.x","fraction.y")])
+# View(combined_predictions[,c("fraction.x","fraction.y")])
 combined_predictions$fraction.y <- NULL
 combined_predictions %<>% rename(fraction = fraction.x)
-combined_predictions %<>% mutate(
-  proposed = ifelse(
-    test = proposed == "самовисування",
-    yes = fraction,
-    no = proposed)
-)
+# combined_predictions %<>% mutate(
+#   proposed = ifelse(
+#     test = proposed == "самовисування",
+#     yes = fraction,
+#     no = proposed)
+# )
 
 sort(table(combined_predictions$proposed), decreasing = T)
 
@@ -377,7 +464,7 @@ filtered_top_three = combined_predictions %>%
   mutate(spread = likelihood - median(likelihood))
 sort(table(filtered_top_three$proposed), decreasing = T)
 # needs to be cleaned by hand...
-write.csv(filtered_df_3, "top_3_per_tvo.csv", row.names = F)
+write.csv(filtered_top_three, "top_3_per_tvo.csv", row.names = F)
 # 
 # fractions_df_7th = read_csv("https://data.rada.gov.ua/ogd/mps/skl7/mp-posts_full.csv")
 # fractions_df_7th = fractions_df_7th %>%
