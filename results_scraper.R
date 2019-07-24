@@ -144,11 +144,12 @@ predictions_updated = read_csv("predictions_updated.csv")
 
 # this is taking the top using perc_for linear method
 predictions_updated %<>% group_by(tvo) %>% top_n(1, wt = prediction_50)
+predictions_df_top %<>% group_by(tvo) %>% top_n(1, wt = likelihood)
 # predictions_updated = predictions_updated[-which(duplicated(predictions_updated$tvo)),]
 
 # set up the confusion matrix. Can change predicted to see performance of different models
 comparison_df = data.frame(
-  predicted = predictions_updated$deputat, #predictions_updated$deputat,
+  predicted = predictions_df_top$deputat, #predictions_updated$deputat,
   atual = winners_df$candidate,
   tvo = winners_df$tvo,
   party = winners_df$proposed,
@@ -158,7 +159,8 @@ comparison_df = data.frame(
 
 correct = comparison_df$predicted == comparison_df$atual
 table(correct)
-# View(comparison_df[!correct,])
+# View(comparison_df[!correct,]) 
+# our model predicted properly in 90 of 199 TVO's
 
 # combine results with candidate info
 names(winners_df)
@@ -179,9 +181,10 @@ rm(temp_names)
 write.csv(x = combined_df_sub, "election_results.csv", row.names = F, fileEncoding = "UTF-8")
 # rm(list = ls())
 
-#add the results to the predition dataframe and rerun the model
+# add the results to the predition dataframe and rerun the model
 names(results)
 names(clean_predictions_df)
+results$year = 2019
 
 #add winner column to results
 results %<>% group_by(tvo) %>%
@@ -189,11 +192,11 @@ results %<>% group_by(tvo) %>%
 head(results$winner, 25)
 # results is shorter because some people left the race
 clean_predictions_df$tvo %<>% as.numeric()
-data_2019 = left_join(results, clean_predictions_df[,-c(2,3,8,20)],
-                      by = c("candidate" = "deputat", "tvo"))
+data_2019 = left_join(clean_predictions_df[,-c(2,3,20)], results[,-c(6,7)],
+                      by = c("deputat" = "candidate", "tvo", "year"))
 names(data_2019)
 write.csv(data_2019, "rerun_model_actual_data_2019.csv", row.names = F)
-# ###### Add new results to GEOJSON for plotting using leaflet ################################
+###### Add new results to GEOJSON for plotting using leaflet ################################
 # results_df = read_csv("election_results.csv")
 
 ######### Check the results using the new updated data ########################################
