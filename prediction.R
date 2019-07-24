@@ -19,6 +19,7 @@ setwd(dir = "/Users/isaiahlawrencevaldez/Documents/GitHub/parliamentary_election
 data = read_csv(file = "combined_results_cleaned.csv") %>% data.table(stringsAsFactors = T)
 data[, tvo := as.factor(as.character(tvo))]
 data[, tvo_pres := as.factor(as.character(tvo_pres))]
+data[, log_perc_for := log1p(perc_for)]
 
 # need this to split the data later on
 data$unique_id = 1:nrow(data)
@@ -73,11 +74,9 @@ rm(data)
 ## take a look at the first few rows of the data set
 train[1:5,]   ## rows 1-5, all columns
 names(train)
-feature_names = c("tvo", "oblast", "year", "proposed", "gender", "age",
-                  "job", "party", "pres_candidate", "pres_perc_for",
-                  "average_age", "pop_change", "region_ideology", "previous",
-                  "ever", "funding", "power_status", "party_ideology",
-                  "prop_election_forecast")
+feature_names = c("tvo", "oblast", "year", "proposed", "gender", "age", "party",
+                  "average_age", "pop_change", "previous", "ever", "job", "funding",
+                  "region_ideology", "power_status", "party_ideology", "prop_election_forecast")
 feature_names
 h2o.isfactor(train[,feature_names])
 
@@ -260,26 +259,9 @@ xgb4 <- h2o.xgboost(            ## h2o.randomForest function
 
 var_imp = h2o.varimp(xgb1)
 h2o.varimp(xgb1)
-# # not looking at these closely because some tvo's predict no winners, some several
-# # because the model does not know that one person wins in each tvo
-# h2o.performance(xgb1, newdata = train) 
-# h2o.performance(xgb1, newdata = valid)
-# h2o.performance(xgb1, newdata = test)
-
 h2o.varimp(xgb2)
-# h2o.performance(xgb2, newdata = train)
-# h2o.performance(xgb2, newdata = valid)
-# h2o.performance(xgb2, newdata = test)
-
 h2o.varimp(xgb3)
-# h2o.performance(xgb3, newdata = train)
-# h2o.performance(xgb3, newdata = valid)
-# h2o.performance(xgb3, newdata = test)
-
 h2o.varimp(xgb4)
-# h2o.performance(xgb4, newdata = train)
-# h2o.performance(xgb4, newdata = valid)
-# h2o.performance(xgb4, newdata = test)
 
 prediction_150 = h2o.predict(xgb1, newdata = df_test) %>% as.data.frame()
 prediction_100 = h2o.predict(xgb2, newdata = df_test) %>% as.data.frame()
@@ -300,7 +282,6 @@ pick_winners = function(df, tvo_column, vote_column) {
   }
   won
 }
-
 predict_df$winner = pick_winners(predict_df, tvo_column = "tvo", vote_column = "prediction_150")
 # View(predict_df[,c("tvo","deputat","winner","prediction_150","proposed")] %>%
 #        arrange(tvo,desc(prediction_150)))
@@ -309,7 +290,42 @@ predict_df$winner = pick_winners(predict_df, tvo_column = "tvo", vote_column = "
 predict_df$tvo %<>% as.character() %>% as.numeric()
 predict_df %<>% arrange(tvo,desc(prediction_150))
 
-write.csv(predict_df, file = "predictions.csv", row.names = F)
+#### XGBOOST PREDICTING LOG_PERC_FOR (LINEAR MODEL) #######################################
+x = feature_names
+y = 30 #perc_for column
+names(train[,x])
+names(train[,y])
+
+xgb5 <- h2o.xgboost(            ## h2o.randomForest function
+  model_id = "xgb5",
+  ntrees = 50,
+  eta = 0.1,
+  min_child_weight = 9,        ## very imbalanced
+  max_depth = 11,
+  gamma = 0,                   ## should be tuned, depends on logloss function
+  max_delta_step = 0,          ## defaults to 0, can be helpful in unbalanced models
+  subsample = 0.8,             ## defaults to 1, lowering prevents overfit
+  colsample_bytree = 0.8,      ## fraction of columns to samples for each tree
+  stopping_rounds = 5,
+  verbose = T,
+  seed = 1234,                  ##
+  training_frame = train,      ## the H2O frame for training
+  validation_frame = valid,    ## the H2O frame for validation (not required)
+  x = x,                       ## the predictor columns, by column index
+  y = y  #log_perc_win              ## the target index (what we are predicting) "log_perc_win"
+)
+
+var_imp_linear = h2o.varimp(xgb5)
+var_imp_linear
+h2o.performance(xgb5)
+
+prediction_perc_for = h2o.predict(xgb5, newdata = df_test) %>% as.data.frame() #auto training the data
+predict_df$prediction_perc_for = prediction_perc_for[,1]
+# getting the winners based on who has the highest prediction in each tvo
+predict_df %<>% group_by(tvo) %>% mutate(winner_prediction_by_perc = prediction_perc_for == max(prediction_perc_for))
+names(predict_df)
+######## write the file with both linear and binary predictors ###################################
+write.csv(predict_df, file = "predictions_updated.csv", row.names = F)
 
 ##### LOOKING AT THE PREDICTIONS FROM THE MODEL TO SEE WHERE IT GUESSES WRONG ###################
 # library(caret)
@@ -453,19 +469,19 @@ sort(table(combined_predictions$proposed), decreasing = T)
 #   filter(year == 2019)
 # sort(table(filtered_df_2$proposed), decreasing = T)
 # sort(table(filtered_df_2 %>% ungroup %>% filter(proposed == "самовисування") %>% select(fraction)), decreasing = T)
-# 
-filtered_top_three = combined_predictions %>%
-  group_by(tvo) %>%
-  arrange(tvo, desc(prediction_150)) %>%
-  top_n(n=5, wt = prediction_150) %>%
-  mutate(likelihood = prediction_150 / sum(prediction_150, na.rm = T)) %>%
-  select(deputat, tvo, winner, likelihood, proposed, fraction, age, gender, fraction) %>%
-  top_n(n=3, wt = likelihood) %>%
-  mutate(spread = likelihood - median(likelihood))
-sort(table(filtered_top_three$proposed), decreasing = T)
-# needs to be cleaned by hand...
-write.csv(filtered_top_three, "top_3_per_tvo.csv", row.names = F)
-# 
+# # 
+# filtered_top_three = combined_predictions %>%
+#   group_by(tvo) %>%
+#   arrange(tvo, desc(prediction_150)) %>%
+#   top_n(n=5, wt = prediction_150) %>%
+#   mutate(likelihood = prediction_150 / sum(prediction_150, na.rm = T)) %>%
+#   select(deputat, tvo, winner, likelihood, proposed, fraction, age, gender, fraction) %>%
+#   top_n(n=3, wt = likelihood) %>%
+#   mutate(spread = likelihood - median(likelihood))
+# sort(table(filtered_top_three$proposed), decreasing = T)
+# # needs to be cleaned by hand...
+# write.csv(filtered_top_three, "top_3_per_tvo.csv", row.names = F)
+# # 
 # fractions_df_7th = read_csv("https://data.rada.gov.ua/ogd/mps/skl7/mp-posts_full.csv")
 # fractions_df_7th = fractions_df_7th %>%
 #   filter(grepl(pattern = "депутатської (фракції|групи)", x = post_name)) %>%
