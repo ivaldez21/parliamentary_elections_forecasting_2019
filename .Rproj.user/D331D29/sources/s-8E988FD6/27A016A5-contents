@@ -1,0 +1,124 @@
+##### METADATA #######################
+# Author: Isaiah Valdez
+# Project: Election forecasting with TEXTY.org.ua
+# Date: created on 04 JULY 2019
+# 
+# Contact the author with any questions at:
+#   isaiah.l.valdez@gmail.com
+
+##### PACKAGES #######################
+require(rvest)
+require(magrittr)
+require(stringr)
+require(dplyr)
+require(readr)
+require(stringi)
+require(tidyr)
+setwd("/Users/isaiahlawrencevaldez/Documents/GitHub/parliamentary_elections_forecasting_2019/isaiah")
+# setwd("C:/Users/Isaiah Valdez/texty/isaiah/parliamentary_elections_forecasting_2019")
+Sys.setlocale(locale = "UTF-8")
+
+##### COLLECTION #####################
+url_2014 = "https://www.cvk.gov.ua/pls/vnd2014/wp032pt001f01=910.html"
+url_2012 = "https://www.cvk.gov.ua/pls/vnd2012/wp032ad94.html?PT001F01=900"
+url_2019 = "https://www.cvk.gov.ua/pls/vnd2019/wp032pt001f01=919.html"
+
+scrape_tvo_results = function(url) {
+  
+  page = read_html(url)
+  base_url = str_extract(string = url, pattern = "^(.*[\\/])")
+  tvos_rel_hyper = page %>% html_nodes('.td2 .a1') %>% html_attr('href')
+  tvos = paste(base_url, tvos_rel_hyper, sep = '') #links to each region
+  
+  all_frames = lapply(tvos, scrape_tvo_table)
+  df = bind_rows(all_frames)
+  df
+}
+
+scrape_tvo_table = function(url) {
+  page = read_html(url)
+  tables = page %>% html_nodes('table.t2')
+  table = tables[[2]] %>% html_table
+  colnames(table) = table[1,]
+  table = table[-1,] #the table 'headers' are coded as the first row
+  table[,'tvo'] = page %>% html_nodes('p > font') %>% html_text %>% str_extract(pattern = "\\d+")
+  print(table[1,'tvo'])
+  Sys.sleep(1.0)
+  table 
+}
+
+candidates_2014_raw = scrape_tvo_results(url_2014)
+candidates_2012_raw = scrape_tvo_results(url_2012)
+candidates_2019_raw = scrape_tvo_results(url_2019)
+# write.csv(candidates_2019_raw, file = "candidate_2019_raw.csv", row.names = F)
+# write.csv(candidates_2014_raw, file = "candidate_2014_raw.csv", row.names = F)
+# write.csv(candidates_2012_raw, file = "candidate_2012_raw.csv", row.names = F)
+##### PROCESSING ##############################################################
+candidates_2019_raw = read_csv("candidate_2019_raw.csv")
+candidates_2014_raw = read_csv("candidate_2014_raw.csv")
+candidates_2012_raw = read_csv("candidate_2012_raw.csv")
+
+extract_cyr = function(string, pattern) {
+  extraction = regmatches(x = string, regexpr(pattern = pattern, text = string, perl = T))
+  extraction
+}
+
+clean_candidate_df = function(df) {
+  for (i in 1:nrow(df)) {
+    # fixes the spacing in the names
+    df[i,1] =  gsub(pattern = "([а-яґєії])([А-ЯҐЄІЇ])", x = df[i,1], replacement = "\\1 \\2")
+    df[['Висування']][i] =  gsub(pattern = "[[:punct:]]", x = df[['Висування']][i], replacement = "") %>% tolower()
+    # splits the info column
+    df[i,"gender"] = ifelse(test = grepl(pattern = "народився", x = df[i,2]), yes = "M", "F")
+    df[i,"age"] = as.integer(format(Sys.Date(), "%Y")) - as.integer(regmatches(x = df[i,2], regexpr("\\d{4}", df[i,2])))
+    birthday = extract_cyr(string = df[i,2], pattern = "\\d{1,2} .* \\d{4}")
+    month = str_extract(birthday, pattern = "\\D+") %>% trimws
+    day = str_extract(birthday, pattern = "^\\d+")
+    year = str_extract(birthday, pattern = "\\d+$")
+    month = switch(month,
+                   "сiчня" = "1","лютого" = "2","березня" = "3",
+                   "квiтня" = "4","травня" = "5","червня" = "6",
+                   "липня" = "7","серпня" = "8","вересня" = "9",
+                   "жовтня" = "10","листопада" = "11","грудня" = "12")
+    if (length(month) == 0) {print(str_extract(birthday, pattern = "\\D+") %>% trimws)}
+    
+    birthday = paste(day,month,year, sep = '.')
+    df[i,"birthday"] = birthday
+    df[i,"job"] = extract_cyr(string = df[i,2], pattern = "(освіта.*,).(?=проживає)") %>%
+      strsplit(split = ",") %>%
+      extract2(1) %>% magrittr::extract(2) %>% trimws()
+    df[i,"city"] = extract_cyr(string = df[i,2], pattern = "проживає (в|на) ((?!територ)[^,])+")
+    party_scraped = extract_cyr(string = df[i,2], pattern = "(?<=член )([^,]+)") %>%
+      tolower() %>% gsub(pattern = "[[:punct:]]", replacement = "")
+    if (length(party_scraped) > 0) {
+      party_scraped = gsub(pattern = "(ої)\\b", replacement = "а", x = party_scraped)
+      party_scraped = gsub(pattern = "(ії)\\b", replacement = "ія", x = party_scraped)
+      df[i,"party_scraped"] = party_scraped
+    } else {
+      df[i,"party_scraped"] = "безпартійний"
+    }
+    
+  }
+  df
+}
+
+copy_2019 = clean_candidate_df(candidates_2019_raw)
+copy_2014 = clean_candidate_df(candidates_2014_raw)
+copy_2012 = clean_candidate_df(candidates_2012_raw)
+
+head(sort(table(copy_2019$party_scraped), decreasing = T), 25)
+head(sort(table(copy_2019$Висування), decreasing = T), 25)
+head(sort(table(copy_2014$party_scraped), decreasing = T), 25)
+head(sort(table(copy_2012$party_scraped), decreasing = T), 25)
+
+head(copy_2014$age)
+head(copy_2014$birthday)
+head(copy_2014$gender)
+head(copy_2014$job)
+head(copy_2014$city)
+
+# getting candidates with multiple 
+
+write.csv(copy_2014, "candidates_info_2014.csv", row.names = F, fileEncoding = "UTF-8")
+write.csv(copy_2012, "candidates_info_2012.csv", row.names = F, fileEncoding = "UTF-8")
+write.csv(copy_2019, "candidates_info_2019.csv", row.names = F, fileEncoding = "UTF-8")

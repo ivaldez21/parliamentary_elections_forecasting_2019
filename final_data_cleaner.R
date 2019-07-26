@@ -14,14 +14,14 @@ Sys.setlocale(locale = "UTF-8")
 setwd(dir = "/Users/isaiahlawrencevaldez/Documents/GitHub/parliamentary_elections_forecasting_2019/isaiah")
 
 df = read.csv(file = "combined_results.csv")
-copy_df = df
+copy_df = df #why do we need this copy?
 names(df)
 
 ## Ensuring column types are set properly (no fake integers, such as tvo)
 factor_columns = c("party", "tvo", "oblast", "tvo_pres", "pres_candidate", "proposed", "gender",
                    "job", "city_living", "region_ideology", "power_status", "party_ideology")
 number_columns = c("perc_for", "votes_for", "year", "pres_perc_for", "pres_votes_for", "age", 
-                   "average_age", "pop_change", "funding", "prop_election_forecast")
+                   "average_age", "pop_change", "funding", "prop_election_forecast", "count")
 logical_columns = c("winner", "previous", "ever")
 date_columns = c("registration", "birthday") #both are written as DD.MM.YYYY
 char_columns = c("info", "deputat")
@@ -77,8 +77,8 @@ df$job[grepl(pattern = "президент\\b", x = df$job)] = "президен
 
 
 for (column in c("party", "proposed")) {
-  df[[column]] = tolower(df[[column]])
-  df[[column]] = gsub(pattern = "[[:punct:]]", replacement = "", x = df[[column]])
+  df[[column]] = tolower(df[[column]]) %>%
+    gsub(pattern = "[[:punct:]]", replacement = "", x = .)
 }
 
 jobs = df %>% group_by(job) %>%
@@ -91,7 +91,6 @@ jobs = df %>% group_by(job) %>%
 
 
 df$job[-which(df$job %in% jobs$job)] = "Other"
-table(df$job)
 length(levels(as.factor(as.character(df$job)))) #reduced to 57 levels + other
 df$winner <- as.numeric(df$winner)
 

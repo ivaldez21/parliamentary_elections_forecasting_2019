@@ -64,18 +64,13 @@ parl_2014 = left_join(x = parl_2014, y = candidate_info_2014, by = c("deputat", 
 parl_2012 = left_join(x = parl_2012, y = candidate_info_2012, by = c("deputat", "tvo"))
 parl_2019 = left_join(x = parl_2019, y = candidate_info_2019, by = c("deputat", "tvo"))
 
-# # check dupes 
-# get_dupes = function(parl_df) {
-#   dupes = parl_df %>% group_by(deputat, tvo) %>% summarize(n = n()) %>% filter(n > 1)
-#   dupes
-#   for (i in 1:nrow(dupes)) {
-#     print(grep(pattern = dupes$deputat[i], x = parl_df$deputat, value = T))
-#     print("________________________________________________________________")
-#   }
-# }
-# dupes_2019 = get_dupes(parl_2019)
-# dupes_2014 = get_dupes(parl_2014)
-# dupes_2012 = get_dupes(parl_2012)
+colSums(is.na(parl_2012))
+colSums(is.na(parl_2014))
+colSums(is.na(parl_2019))
+
+parl_2019[which(is.na(parl_2019$info)),]
+parl_2014[which(is.na(parl_2014$info)),]
+
 table(duplicated(parl_2019))
 table(duplicated(parl_2014))
 table(duplicated(parl_2012))
@@ -232,8 +227,8 @@ find_winners = function(df, vote_column, tvo_column) {
 parl_2014$winner = find_winners(df = parl_2014, vote_column = "perc_for", "tvo") == 1
 parl_2012$winner = find_winners(df = parl_2012, vote_column = "perc_for", "tvo") == 1
 
-table(parl_2012$tvo[which(parl_2012$winner == 1)])
-table(parl_2014$tvo[which(parl_2014$winner == 1)])
+table(parl_2012$tvo[which(parl_2012$winner)])
+table(parl_2014$tvo[which(parl_2014$winner)])
 
 ##### ADDING DEMOGRAPHICS TO TVOS ############################################################
 demo = read.csv(file = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSNxiVppRf_pyTzKIXI-NA-5ncgsmjr8EmKSNUlarYzpdVC12ToK80zDjDXRkWvw_lmF6ng-yoTRMvP/pub?gid=34744934&single=true&output=csv",
@@ -241,34 +236,29 @@ demo = read.csv(file = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSNxiVpp
 demo_2012 = demo[,c(1,3,5,6)]
 demo_2014 = demo[,c(1,2,4,6)]
 
-data_2010_2012 = inner_join(x = TVO_corresponding_2010_2012, y = demo_2012, by = "oblast")
-data_2014_2014 = inner_join(x = TVO_corresponding_2014, y = demo_2014, by = "oblast")
-demo_2012_tvo = data_2010_2012[,c(1,2,6,7,8)]
-demo_2014_tvo = data_2014_2014[,c(1,2,6,7,8)]
+demo_2012_tvo = inner_join(x = TVO_corresponding_2010_2012, y = demo_2012, by = "oblast")
+demo_2014_tvo = inner_join(x = TVO_corresponding_2014, y = demo_2014, by = "oblast")
+
+demo_2012_tvo = demo_2012_tvo[,c(1,2,6,7,8)]
+demo_2014_tvo = demo_2014_tvo[,c(1,2,6,7,8)]
 demo_2019_tvo = demo_2014_tvo #just reusing this information....?
+
 names(demo_2012_tvo) = c("oblast", "tvo", "average_age", "pop_change", "region_ideology")
 names(demo_2014_tvo) = c("oblast", "tvo", "average_age", "pop_change", "region_ideology")
 names(demo_2019_tvo) = c("oblast", "tvo", "average_age", "pop_change", "region_ideology")
-write.csv(data_2010_2012, "data_2010_2012.csv", row.names = F)
-write.csv(data_2014_2014, "data_2014_2014.csv", row.names = F)
-# levels(as.factor(data_2010_2012$oblast))
-# levels(as.factor(data_2014_2014$oblast))
 
-##### ADDING DEMOGRAPHICS BY TVO TO PARL
+##### ADDING DEMOGRAPHICS BY TVO TO PARL #################################################
 
 parl_2014_copy = left_join(x = parl_2014, y = demo_2014_tvo, by = c("tvo", "oblast"))
 parl_2012_copy = left_join(x = parl_2012, y = demo_2012_tvo, by = c("tvo", "oblast"))
 parl_2019_copy = left_join(x = parl_2019, y = demo_2019_tvo, by = c("tvo", "oblast"))
 
-# getting 92 duplicates for 2012...STILL! why? I have no idea...
+# check for dupes
 table(duplicated(parl_2012_copy))
 table(duplicated(parl_2014_copy))
 table(duplicated(parl_2019_copy))
-parl_2012_copy = parl_2012_copy[-which(duplicated(parl_2012_copy)),]
-# parl_2019_copy = parl_2019_copy[-which(duplicated(parl_2019_copy)),] #no dupes
-# parl_2014_copy = parl_2014_copy[-which(duplicated(parl_2014_copy)),] #no dupes
 
-###### ADD COLUMN "PREVIOUSLY AN MP" ###################################
+##### ADD COLUMN "PREVIOUSLY AN MP" ###################################
 # # Run the below code just to download the results and create the csv once
 # MP_urls = paste0("https://data.rada.gov.ua/ogd/mps/skl", 1:8,"/mps0", 1:8,"-data.csv")
 # 
@@ -281,73 +271,45 @@ parl_2012_copy = parl_2012_copy[-which(duplicated(parl_2012_copy)),]
 MPs_all_convocation = read_csv("MPs_all_convocations.csv")
 # we will subset the mps dataset by convocation then search for match by birthdate/gender/name?
 
-winner_2012 = parl_2012_copy[which(parl_2012_copy$winner == 1),]
-winner_2014 = parl_2014_copy[which(parl_2014_copy$winner == 1),]
-
-# in_both_dfs = levels(as.factor(winner_2012$deputat)) %in% levels(as.factor(MPs_all_convocation$full_name))
-# in_both_dfs_2014 = levels(as.factor(winner_2014$deputat)) %in% levels(as.factor(MPs_all_convocation$full_name))
-# table(in_both_dfs)
-# table(in_both_dfs_2014)
-# levels(as.factor(winner_2012$deputat))[!in_both_dfs] #these two results were "cancelled'
-# levels(as.factor(winner_2014$deputat))[!in_both_dfs_2014]
-
 #first need to clean the numerals from deputy names (were added for dupes)
 #(and sometimes quotes are different in different ukrainian sources)
 parl_2012_copy$deputat = gsub(pattern = "[[:punct:][:digit:]]", replacement = "", x = parl_2012_copy$deputat) %>% trimws()
 parl_2014_copy$deputat = gsub(pattern = "[[:punct:][:digit:]]", replacement = "", x = parl_2014_copy$deputat) %>% trimws()
 parl_2019_copy$deputat = gsub(pattern = "[[:punct:][:digit:]]", replacement = "", x = parl_2019_copy$deputat) %>% trimws()
 MPs_all_convocation$full_name = gsub(pattern = "[[:punct:][:digit:]]", replacement = "", x = MPs_all_convocation$full_name) %>% trimws()
-names(MPs_all_convocation)
-names(parl_2012_copy)
 
-# shows if they were a deputy in the last convocation (incumbent)
-parl_2012_copy_previous = semi_join(x = parl_2012_copy,
-                                    y = MPs_all_convocation[which(MPs_all_convocation$convocation == 6),],
-                                    by = c("deputat" = "full_name", "birthday"))
-parl_2014_copy_previous = semi_join(x = parl_2014_copy,
-                                    y = MPs_all_convocation[which(MPs_all_convocation$convocation == 7),],
-                                    by = c("deputat" = "full_name", "birthday"))
-parl_2019_copy_previous = semi_join(x = parl_2019_copy,
-                                    y = MPs_all_convocation[which(MPs_all_convocation$convocation == 8),],
-                                    by = c("deputat" = "full_name", "birthday"))
-# shows if they were EVER a deputy
-parl_2012_copy_ever = semi_join(x = parl_2012_copy,
-                                y = MPs_all_convocation[which(MPs_all_convocation$convocation %in% 1:6),],
-                                by = c("deputat" = "full_name", "birthday"))
-parl_2014_copy_ever = semi_join(x = parl_2014_copy,
-                                y = MPs_all_convocation[which(MPs_all_convocation$convocation %in% 1:7),],
-                                by = c("deputat" = "full_name", "birthday"))
-parl_2019_copy_ever = semi_join(x = parl_2019_copy,
-                                y = MPs_all_convocation[which(MPs_all_convocation$convocation %in% 1:8),],
-                                by = c("deputat" = "full_name", "birthday"))
+# check if candiate was an MP before (2012)
+parl_2012_copy = left_join(x = parl_2012_copy, y = MPs_all_convocation, by = c("deputat" = "full_name", "birthday"))
+parl_2012_copy %<>%
+  group_by(deputat, birthday) %>%
+  mutate(
+    previous = 6 %in% convocation,
+    ever = isTRUE(min(convocation) < 7),
+    count = sum(convocation < 7, na.rm = T)) %>%
+  select(-convocation) %>%
+  distinct()
 
-parl_2012_copy_previous = parl_2012_copy_previous[,c('deputat','birthday')]
-parl_2014_copy_previous = parl_2014_copy_previous[,c('deputat','birthday')]
-parl_2019_copy_previous = parl_2019_copy_previous[,c('deputat','birthday')]
-parl_2012_copy_ever = parl_2012_copy_ever[,c('deputat','birthday')]
-parl_2014_copy_ever = parl_2014_copy_ever[,c('deputat','birthday')]
-parl_2019_copy_ever = parl_2019_copy_ever[,c('deputat','birthday')]
+# check if candiate was an MP before (2012)
+parl_2014_copy = left_join(x = parl_2014_copy, y = MPs_all_convocation, by = c("deputat" = "full_name", "birthday"))
+parl_2014_copy %<>%
+  group_by(deputat, birthday) %>%
+  mutate(
+    previous = 7 %in% convocation,
+    ever = isTRUE(min(convocation) < 8),
+    count = sum(convocation < 8, na.rm = T)) %>%
+  select(-convocation) %>%
+  distinct()
 
-parl_2012_copy_previous$previous = 1
-parl_2014_copy_previous$previous = 1
-parl_2019_copy_previous$previous = 1
-parl_2012_copy_ever$ever = 1
-parl_2014_copy_ever$ever = 1
-parl_2019_copy_ever$ever = 1
-
-parl_2012_copy = left_join(x = parl_2012_copy, y = parl_2012_copy_previous, by = c("deputat", "birthday"))
-parl_2014_copy = left_join(x = parl_2014_copy, y = parl_2014_copy_previous, by = c("deputat", "birthday"))
-parl_2019_copy = left_join(x = parl_2019_copy, y = parl_2019_copy_previous, by = c("deputat", "birthday"))
-parl_2012_copy = left_join(x = parl_2012_copy, y = parl_2012_copy_ever, by = c("deputat", "birthday"))
-parl_2014_copy = left_join(x = parl_2014_copy, y = parl_2014_copy_ever, by = c("deputat", "birthday"))
-parl_2019_copy = left_join(x = parl_2019_copy, y = parl_2019_copy_ever, by = c("deputat", "birthday"))
-
-parl_2012_copy$previous = replace_na(parl_2012_copy$previous, replace = 0)
-parl_2014_copy$previous = replace_na(parl_2014_copy$previous, replace = 0)
-parl_2019_copy$previous = replace_na(parl_2019_copy$previous, replace = 0)
-parl_2012_copy$ever = replace_na(parl_2012_copy$ever, replace = 0)
-parl_2014_copy$ever = replace_na(parl_2014_copy$ever, replace = 0)
-parl_2019_copy$ever = replace_na(parl_2019_copy$ever, replace = 0)
+# check if candiate was an MP before (2012)
+parl_2019_copy = left_join(x = parl_2019_copy, y = MPs_all_convocation, by = c("deputat" = "full_name", "birthday"))
+parl_2019_copy %<>%
+  group_by(deputat, birthday) %>%
+  mutate(
+    previous = 8 %in% convocation,
+    ever = isTRUE(min(convocation) < 9),
+    count = sum(convocation < 9, na.rm = T)) %>%
+  select(-convocation) %>%
+  distinct()
 
 table(parl_2012_copy$previous) #around 152 are incumbent (convocation 6)
 table(parl_2014_copy$previous) #around 157 are incumbent (convocation 7)
@@ -355,7 +317,7 @@ table(parl_2019_copy$previous) #around 197 are incumbent (convocation 8)
 table(parl_2012_copy$ever) #around 245 were previously MP's (convocations 1-6)
 table(parl_2014_copy$ever) #around 227 were previously MP's (convocations 1-7)
 table(parl_2019_copy$ever) #around 247 were previously MP's (convocations 1-8)
-# less in 2014(less because of lustration/outing after Yanukovich)
+# less in 2014(less because of lustration/outing after Yanukovich ?)
 # for (i in nrow) 
 #there were problems here because of "dupe" names in 2014, two candidates in same tvo, same name
 
@@ -432,12 +394,12 @@ combined_df = bind_rows(parl_2012_copy, parl_2014_copy, parl_2019_copy)
 
 party_ideologies = read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSNxiVppRf_pyTzKIXI-NA-5ncgsmjr8EmKSNUlarYzpdVC12ToK80zDjDXRkWvw_lmF6ng-yoTRMvP/pub?gid=1018797553&single=true&output=csv")
 
-combined_df_copy = left_join(x = combined_df, y = party_ideologies, by = c("partia" = "party", "year"))
-combined_df_copy$partia = NULL
+combined_df = left_join(x = combined_df, y = party_ideologies, by = c("partia" = "party", "year"))
+combined_df$partia = NULL
 
-write_csv(x = combined_df_copy, path = "combined_results.csv")
-train_df = combined_df_copy[which(combined_df_copy$year %in% c(2012,2014)),]
-predict_df = combined_df_copy[which(combined_df_copy$year == 2019),]
+write_csv(x = combined_df, path = "combined_results.csv")
+train_df = combined_df[which(combined_df$year %in% c(2012,2014)),]
+predict_df = combined_df[which(combined_df$year == 2019),]
 
 write_csv(x = train_df, path = "train_df.csv")
 write_csv(x = predict_df, path = "predict_df.csv")

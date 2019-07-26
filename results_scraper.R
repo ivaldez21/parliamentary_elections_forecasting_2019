@@ -66,16 +66,14 @@ write.csv(results_raw, "2019_results_raw.csv", row.names = F)
 rm(result_raw_list, get_results, result_raw_list)
 
 ######## NOT RUNNING THE SCRAPER AGAIN ############################
-results_raw = read_csv("2019_results_raw.csv")
-
-names(results_raw) = c("candidate", "graph", "perc_for",
+results= read_csv("2019_results_raw.csv")
+names(results) = c("candidate", "graph", "perc_for",
                        "votes_for", "tvo", "candidate_url", "percent_counted")
-# rm(result_raw_list) #save memory
 
 ##### Clean the raw extracted data #####################
-results = results_raw #keeping a copy
-sapply(results, mode)
 results[['graph']] <- NULL
+results[["proposed"]] = ""
+results[1,]
 
 #fix the comma/deciml/space problem in numeric columns
 for (col in c("perc_for", "votes_for", "percent_counted")) {
@@ -84,7 +82,7 @@ for (col in c("perc_for", "votes_for", "percent_counted")) {
     gsub(pattern = "\\s", replacement = "") %>%
     as.numeric()
 }
-sapply(results, class)
+results[1,]
 
 #split the candidate column into candidate and proposed party
 results[["proposed"]] = results[["candidate"]] %>%
@@ -92,110 +90,64 @@ results[["proposed"]] = results[["candidate"]] %>%
 results[["candidate"]] %<>%
   strsplit(split = ",") %>% sapply(FUN = `[[`, 1) %>% trimws()
 
-# results %<>% mutate_if(is.character,as.factor)
-sapply(results, class)
-
 #shorten the party names for graphs
 for (i in 1:nrow(results)) {
-  results$proposed[i] = switch(results$proposed[i],
-                            'ПОЛІТИЧНА ПАРТІЯ "СЛУГА НАРОДУ"' = "Слуга Народу",
-                            "самовисування" = "самовисування",
-                            'Політична партія "ОПОЗИЦІЙНА ПЛАТФОРМА – ЗА ЖИТТЯ"' = "Опозиційна платформа",
-                            'Політична партія "ОПОЗИЦІЙНИЙ БЛОК"' = "Опозиційний блок",
-                            'політична партія Всеукраїнське об’єднання "Батьківщина"' = "Батьківщина",
-                            'Політична Партія "ГОЛОС"' = 'Голос',
-                            'Політична партія "Європейська Солідарність"' = "Європейська Солідарність",
-                            "Other")
+  # results$proposed[i] = switch(results$proposed[i],
+  #                           'ПОЛІТИЧНА ПАРТІЯ "СЛУГА НАРОДУ"' = "Слуга Народу",
+  #                           "самовисування" = "самовисування",
+  #                           'Політична партія "ОПОЗИЦІЙНА ПЛАТФОРМА – ЗА ЖИТТЯ"' = "Опозиційна платформа",
+  #                           'Політична партія "ОПОЗИЦІЙНИЙ БЛОК"' = "Опозиційний блок",
+  #                           'політична партія Всеукраїнське об’єднання "Батьківщина"' = "Батьківщина",
+  #                           'Політична Партія "ГОЛОС"' = 'Голос',
+  #                           'Політична партія "Європейська Солідарність"' = "Європейська Солідарність",
+  #                           "Other")
+  results$proposed[i] %<>% tolower() %>% gsub(pattern = "[[:punct:]]", replacement = "", x = .)
   results$candidate[i] = gsub(pattern = "[[:punct:]]", replacement = "", x = results$candidate[i])
 }
 
 #group by tvo and take only the top one people
 winners_df = results %>% group_by(tvo) %>% top_n(n = 2, wt = perc_for) %>%
   mutate(spread = perc_for - min(perc_for)) %>% top_n(n = 1, wt = perc_for)
-  # %>% filter(percent_counted < 50)
-
-# predicted_table = table(winners_df$proposed)
-# bins = seq(0,100,2)
-# hist(winners_df$percent_counted, breaks = bins)
-
-# Plot for number of winners per party
-# Fitting Labels 
-par(las=2) # make label text perpendicular to axis
-par(mar=c(5,12,4,2)) # increase y-axis margin.
-
-# # number of winners per party
-# winners_df$proposed %<>% as.factor
-# counts = sort(table(winners_df$proposed))
-# barplot(counts, main="Distribution of Winners", horiz=TRUE)
-
-par(mar=c(2,2,2,2)) # increase y-axis margin.
-
-# # small df with descriptive stats per party
-# parties_df = winners_df %>% group_by(proposed) %>%
-#   summarise(winners = n(),
-#             spread = mean(spread),
-#             percent_counted = mean(percent_counted))
 
 # compare winners to predictions
-predictions_df = read_csv("predictions.csv")
 clean_predictions_df = read_csv("combined_results_cleaned.csv")
 predictions_df_top = read_csv("top_2_per_tvo.csv") #original predictions file
-predictions_updated = read_csv("predictions_updated.csv")
 
 # this is taking the top using perc_for linear method
-predictions_updated %<>% group_by(tvo) %>% top_n(1, wt = prediction_50)
 predictions_df_top %<>% group_by(tvo) %>% top_n(1, wt = likelihood)
-# predictions_updated = predictions_updated[-which(duplicated(predictions_updated$tvo)),]
 
-# set up the confusion matrix. Can change predicted to see performance of different models
-comparison_df = data.frame(
-  predicted = predictions_df_top$deputat, #predictions_updated$deputat,
-  atual = winners_df$candidate,
-  tvo = winners_df$tvo,
-  party = winners_df$proposed,
-  spread = winners_df$spread,
-  stringsAsFactors = F)
-# View(comparison_df)
-
-correct = comparison_df$predicted == comparison_df$atual
-table(correct)
-# View(comparison_df[!correct,]) 
 # our model predicted properly in 90 of 199 TVO's
+correct = predictions_df_top$deputat == winners_df$candidate
+table(correct)
+
+# add winner column (boolean) to results
+results %<>%
+  group_by(tvo) %>%
+  mutate(winner = perc_for == max(perc_for))
 
 # combine results with candidate info
-names(winners_df)
-names(predictions_df)
-sapply(winners_df, class)
-sapply(predictions_df, class)
-winners_df$tvo %<>% as.numeric()
-
-combined_df_1 = left_join(winners_df, predictions_df, by = c("candidate" = "deputat", "tvo"))
-combined_df = left_join(combined_df_1, predictions_df_top[,c("deputat", "tvo", "winner")], by = c("candidate" = "deputat", "tvo"))
-names(combined_df)
-combined_df_sub = combined_df %>% select(candidate, perc_for.x, votes_for.x, tvo, candidate_url,
-                                         proposed.x, spread, oblast, gender, age, birthday, job, previous, ever, winner.y)
-temp_names = names(combined_df_sub)
-temp_names[c(2:3,6,15)] = c("perc_for", 'votes_for', "nominated", "predicted_winner")
-names(combined_df_sub) = temp_names
-rm(temp_names)
-write.csv(x = combined_df_sub, "election_results.csv", row.names = F, fileEncoding = "UTF-8")
-# rm(list = ls())
-
-# add the results to the predition dataframe and rerun the model
-names(results)
-names(clean_predictions_df)
 results$year = 2019
+sapply(results, class)
+sapply(clean_predictions_df, class)
 
-#add winner column to results
-results %<>% group_by(tvo) %>%
-  mutate(winner = perc_for == max(perc_for))
-head(results$winner, 25)
-# results is shorter because some people left the race
-clean_predictions_df$tvo %<>% as.numeric()
-data_2019 = left_join(clean_predictions_df[,-c(2,3,20)], results[,-c(6,7)],
-                      by = c("deputat" = "candidate", "tvo", "year"))
-names(data_2019)
-write.csv(data_2019, "rerun_model_actual_data_2019.csv", row.names = F)
+mask_2019 = which(clean_predictions_df$year == 2019)
+temp_2019 = clean_predictions_df[mask_2019,]
+temp_else = clean_predictions_df[-mask_2019,]
+
+# need to use inner joins (only return rows from LHS with matches in RHS because some candidates left)
+# this is because our data for the candidates hasn't been updated since end of june and before the 
+# elections additional candidates (not winners, supposedly) joined the race late. Don't need them
+temp_2019 = inner_join(temp_2019[,-c(2,3,20)], results[,-c(5,6)], by = c("deputat" = "candidate", "tvo", "year", "proposed"))
+colSums(is.na(temp_2019))
+names(temp_2019) %in% names(temp_else)
+sapply(temp_2019, class)
+sapply(temp_else, class)
+
+data_all = bind_rows(temp_else, temp_2019)
+
+colSums(is.na(data_all))
+
+write.csv(data_all, "actual_results_all_years.csv", row.names = F)
 ###### Add new results to GEOJSON for plotting using leaflet ################################
 # results_df = read_csv("election_results.csv")
 

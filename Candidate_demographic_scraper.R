@@ -19,7 +19,7 @@ setwd("/Users/isaiahlawrencevaldez/Documents/GitHub/parliamentary_elections_fore
 Sys.setlocale(locale = "UTF-8")
 
 ##### COLLECTION #####################
-url_2014 = "https://www.cvk.gov.ua/pls/vnd2014/wp03252e6.html?PT001F01=910"
+url_2014 = "https://www.cvk.gov.ua/pls/vnd2014/wp032pt001f01=910.html"
 url_2012 = "https://www.cvk.gov.ua/pls/vnd2012/wp032ad94.html?PT001F01=900"
 url_2019 = "https://www.cvk.gov.ua/pls/vnd2019/wp032pt001f01=919.html"
 
@@ -66,6 +66,8 @@ extract_cyr = function(string, pattern) {
 clean_candidate_df = function(df) {
   for (i in 1:nrow(df)) {
     # fixes the spacing in the names
+    df[,1] = gsub(pattern = "і", x = df[i,1], replacement = "і") #bad latin letters in the data...
+    df[,1] = gsub(pattern = "I", x = df[i,1], replacement = "І") #bad latin letters in the data...
     df[i,1] =  gsub(pattern = "([а-яґєії])([А-ЯҐЄІЇ])", x = df[i,1], replacement = "\\1 \\2")
     df[['Висування']][i] =  gsub(pattern = "[[:punct:]]", x = df[['Висування']][i], replacement = "") %>% tolower()
     # splits the info column

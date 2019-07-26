@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1564143387250.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "48360DEA",
+    "lastKnownWriteTime" : 1564146862,
+    "last_content_update" : 1564146862860,
+    "path" : "~/Documents/GitHub/parliamentary_elections_forecasting_2019/isaiah/results_scraper.R",
+    "project_path" : "results_scraper.R",
+    "properties" : {
+        "cursorPosition" : "150,0",
+        "scrollLine" : "138"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
